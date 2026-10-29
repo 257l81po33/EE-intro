@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>電機島｜海大電機系學程地圖</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<style>
+:root{--ink:#0d3b4f;--panel:#fffdf6;--line:#cfe3e6;--accent:#f2a900;--muted:#46707f;--chip:#e6f4f5;--bg1:#bfe9ee;--bg2:#7cc7d3;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#e6f3f5;--panel:#12303d;--line:#2a5565;--muted:#9cc3cd;--chip:#1b4352;--bg1:#0f3342;--bg2:#0a2230}}
+:root[data-theme="dark"]{--ink:#e6f3f5;--panel:#12303d;--line:#2a5565;--muted:#9cc3cd;--chip:#1b4352;--bg1:#0f3342;--bg2:#0a2230}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;color:var(--ink);background:linear-gradient(var(--bg1),var(--bg2));min-height:100vh;line-height:1.7}
+header{max-width:1000px;margin:0 auto;padding:28px 18px 6px}
+h1{margin:0;font-size:clamp(28px,5vw,46px);font-weight:900;letter-spacing:.02em}
+header p{margin:6px 0 0;color:var(--muted);max-width:60ch}
+main{max-width:1000px;margin:0 auto;padding:10px 18px 40px}
+.stage{position:relative;border-radius:28px;overflow:hidden;background:#8fd3de;box-shadow:0 24px 40px -24px rgba(5,30,45,.6)}
+#cv{display:block;width:100%;touch-action:pan-y;cursor:grab}
+#cv.hot{cursor:pointer}
+.hint{position:absolute;left:14px;bottom:10px;font-size:12px;color:#0d3b4f;background:rgba(255,255,255,.75);border-radius:999px;padding:2px 12px;pointer-events:none}
+.err{padding:40px 20px;text-align:center;color:#0d3b4f}
+.dlg{margin-top:16px;display:grid;grid-template-columns:96px 1fr;gap:16px;background:var(--panel);border:2px solid var(--line);border-radius:24px;padding:18px}
+.dlg .who{text-align:center;font-size:13px;color:var(--muted)}
+.avb{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;font-size:44px;margin:0 auto 4px;border:3px solid #fff}
+.dlg h2{margin:0 0 4px;font-size:22px}
+.dlg p{margin:6px 0;max-width:62ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0;padding:0;list-style:none}
+.chips li{background:var(--chip);border-radius:999px;padding:3px 12px;font-size:14px}
+.chips li.must{background:var(--accent);color:#2b1d00;font-weight:700}
+.sem{margin-top:10px}.sem b{font-size:14px;color:var(--muted)}
+.nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.nav button{font:inherit;cursor:pointer;border:2px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:6px 14px}
+.nav button[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.nav button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.note{font-size:13px;color:var(--muted);margin-top:14px}
+@media (max-width:560px){.dlg{grid-template-columns:1fr}.dlg .who{display:none}}
+</style>
+</head>
+<body>
+<header>
+<h1>電機島 · 海大電機系學程地圖</h1>
+<p>你是島上的「我」。點一位同學,你會走過去聽他聊正在修的課;點核心廣場和六個領域,聽系主任介紹。</p>
+</header>
+<main>
+<div class="stage" id="stage"><canvas id="cv" aria-label="電機島 3D 互動地圖"></canvas><div class="hint">拖曳旋轉 · 滾輪縮放 · 點同學或建築</div></div>
+<section class="dlg" aria-live="polite">
+<div class="who"><div class="avb" id="av"></div><div id="whoName">系主任</div></div>
+<div id="out"></div>
+</section>
+<div class="nav" role="group" aria-label="快速切換">
+<button data-go="intro" aria-pressed="true">歡迎</button>
+<button data-go="core" aria-pressed="false">核心課程</button>
+<button data-go="y1" aria-pressed="false">大一</button>
+<button data-go="y2" aria-pressed="false">大二</button>
+<button data-go="y3" aria-pressed="false">大三</button>
+<button data-go="y4" aria-pressed="false">大四</button>
+<button data-go="minor" aria-pressed="false">輔系</button>
+</div>
+<p class="note">課程依「電機系大學部必修與核心課程關聯圖」與輔系必修科目表整理,各課程實際開課學期與領域修習規定(關聯圖有「六選三」與「六選四」兩種版本)請以系上公告及入學年度課程規劃為準。</p>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const W=29.4,wx=x=>(x-450)/W,wz=y=>(y-300)/W;
+const P=[
+{id:"it",name:"資訊科技領域",icon:"💻",x:215,y:175,c:"#7b6fd6",must:["資料結構","交換電路與邏輯設計"],more:["程式語言","計算機實習","計算機概論"],t:"從程式、資料結構到數位邏輯,這裡處理的是「資訊怎麼被運算與儲存」。"},
+{id:"em",name:"電波領域",icon:"📡",x:450,y:128,c:"#e0735a",must:["電磁學","電磁波"],more:["複變函數","普通物理"],t:"電磁學與電磁波是天線、微波與無線傳輸的基礎,也和大海的通訊息息相關。"},
+{id:"ss",name:"固態電子領域",icon:"🔬",x:685,y:175,c:"#3fa7a0",must:["近代物理","半導體物理"],more:["電子學","普通物理實驗"],t:"研究晶片裡的材料與元件,理解電晶體為什麼能工作。"},
+{id:"pw",name:"電力與電子電路領域",icon:"⚡",x:215,y:395,c:"#f2a900",must:["電機機械","電子學"],more:["電路學","電工實驗"],t:"電力轉換、馬達與電子電路,是能源與電動化的核心。"},
+{id:"ct",name:"控制領域",icon:"🎛️",x:450,y:440,c:"#4a8fd9",must:["自動控制"],more:["線性代數","工程數學","訊號與系統"],t:"讓系統穩定、聽話:從船舶、機器人到工廠自動化都用得到。"},
+{id:"cm",name:"通訊與訊號處理領域",icon:"📶",x:685,y:395,c:"#d4609b",must:["通訊工程","訊號與系統"],more:["機率學","複變函數"],t:"訊號如何被傳送、接收與還原,是手機、衛星與海上通訊的基礎。"}];
+const Y={
+y1:{n:"大一",c:"#5ab0e8",s1:["微積分(上)","普通物理(上)","計算機概論","程式語言"],s2:["微積分(下)","普通物理(下)","普通物理實驗","計算機實習","電路學(一下起修)"],t:"打好數理與程式底子。電路學從一下開始,之後要依序修到二上。"},
+y2:{n:"大二",c:"#6fcf7f",s1:["電路學(二上)","電子學(二上起修)","工程數學","線性代數"],s2:["電子學(二下)","電磁學","交換電路與邏輯設計","電工實驗"],t:"進入電機核心:電路學接電子學,要依序修習,不能跳。"},
+y3:{n:"大三",c:"#f4b942",s1:["電子學(三上)","訊號與系統","機率學","電工實驗"],s2:["電磁波","資料結構","複變函數","領域課程"],t:"開始挑選專業領域,決定你想走哪條路。"},
+y4:{n:"大四",c:"#e0735a",s1:["領域課程","電機機械","通訊工程"],s2:["領域課程","自動控制","專題研究"],t:"完成領域修習與專題,準備就業、進修或考研究所。"}};
+
+const chips=(a,k)=>`<ul class="chips">${a.map(x=>`<li class="${k||""}">${x}</li>`).join("")}</ul>`;
+const Q={y1:"微積分和物理好燒腦,但程式課超好玩!",y2:"電路學接電子學,每週都在算電路。",y3:"訊號與系統好抽象,但學會就很有成就感。",y4:"專題做到半夜,快要看到終點了。"};
+const GY=.15;
+let R;const stage=$("#stage"),cv=$("#cv");
+try{R=new THREE.WebGLRenderer({canvas:cv,antialias:true})}catch(e){stage.innerHTML='<div class="err">此瀏覽器無法顯示 3D 場景,請改用最新版 Chrome、Edge 或 Safari。</div>'}
+if(R){
+R.setPixelRatio(Math.min(devicePixelRatio,2));R.shadowMap.enabled=true;
+const S=new THREE.Scene();S.background=new THREE.Color(0x8fd3de);S.fog=new THREE.Fog(0x8fd3de,34,80);
+const C=new THREE.PerspectiveCamera(40,1.6,.1,200);
+let az=0,pol=.95,zoom=1,base=25;
+const cam=()=>{const d=base*zoom;C.position.set(Math.sin(az)*Math.sin(pol)*d,Math.cos(pol)*d,Math.cos(az)*Math.sin(pol)*d);C.lookAt(0,.6,0)};
+function size(){const w=stage.clientWidth,h=Math.round(w*(w<600?1.05:.62));R.setSize(w,h,false);cv.style.height=h+"px";C.aspect=w/h;base=w<600?36:25;C.updateProjectionMatrix();cam()}
+addEventListener("resize",size);size();
+S.add(new THREE.HemisphereLight(0xffffff,0x5f9aa5,.8));
+const sun=new THREE.DirectionalLight(0xfff0d0,.95);sun.position.set(10,18,9);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-16,right:16,top:16,bottom:-16,near:1,far:60});sun.shadow.camera.updateProjectionMatrix();sun.shadow.bias=-.0004;S.add(sun);
+const M=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.65,flatShading:true},o||{}));
+const B=(w,h,d)=>new THREE.BoxGeometry(w,h,d),Cy=(a,b,h,n)=>new THREE.CylinderGeometry(a,b,h,n||16),Sp=(r,n)=>new THREE.SphereGeometry(r,n||16,12);
+const mesh=(g,m,x,y,z,p)=>{const o=new THREE.Mesh(g,m);o.position.set(x||0,y||0,z||0);if(p)p.add(o);return o};
+const glow=(c,i)=>M(c,{emissive:c,emissiveIntensity:i||.9});
+// island
+const isl=new THREE.Group();S.add(isl);
+const el=(r,h,y,c)=>{const m=mesh(Cy(1,1,h,56),M(c),0,y,0,isl);m.scale.set(10.4*r,1,6.9*r);return m};
+el(.96,1.8,-1.1,0x8f7040);el(1.05,.5,-.15,0xf0dfae);el(1,.3,0,0x6fb77a);
+const water=mesh(new THREE.PlaneGeometry(160,160),M(0x4fb3c6,{transparent:true,opacity:.88,flatShading:false,roughness:.2}),0,-.75,0,S);water.rotation.x=-Math.PI/2;
+const rings=[0,1].map(i=>{const r=mesh(new THREE.RingGeometry(.97,1,72),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,side:THREE.DoubleSide}),0,-.7,0,S);r.rotation.x=-Math.PI/2;return r});
+// plaza
+const plaza=new THREE.Group();plaza.userData.id="core";S.add(plaza);plaza.position.y=GY;
+mesh(Cy(3.6,3.8,.35,48),M(0xc9b67c),0,.17,0,plaza);mesh(Cy(3.2,3.4,.25,48),M(0xead9a4),0,.47,0,plaza);
+[[1.2,1.2],[-1.2,1.2],[1.2,-1.2],[-1.2,-1.2]].forEach(([x,z])=>mesh(Cy(.1,.1,1.7,8),M(0xffffff),x,1.45,z,plaza));
+const roof=mesh(new THREE.ConeGeometry(2.1,1,4),M(0xe0735a),0,2.8,0,plaza);roof.rotation.y=Math.PI/4;
+mesh(Sp(.12),glow(0xffd36b,1),0,3.4,0,plaza);
+// labels
+function label(txt,fs,bg,fg){fs=fs||26;const c=document.createElement("canvas"),x=c.getContext("2d"),f=`700 ${fs}px "Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif`;
+ x.font=f;const w=Math.ceil(x.measureText(txt).width)+30,h=fs+20;c.width=w;c.height=h;x.font=f;x.fillStyle=bg||"rgba(255,255,255,.93)";x.beginPath();x.roundRect?x.roundRect(0,0,w,h,h/2):x.rect(0,0,w,h);x.fill();
+ x.fillStyle=fg||"#0d3b4f";x.textAlign="center";x.textBaseline="middle";x.fillText(txt,w/2,h/2+1);
+ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));s.scale.set(w/80,h/80,1);s.renderOrder=10;return s}
+// buildings
+const gear=(r,n,col)=>{const k=new THREE.Group();mesh(Cy(r,r,.22,28),M(col,{metalness:.4}),0,0,0,k).rotation.x=Math.PI/2;
+ for(let i=0;i<n;i++){const a=i/n*6.283,t=mesh(B(.26,.26,.22),M(col,{metalness:.4}),Math.cos(a)*(r+.08),Math.sin(a)*(r+.08),0,k);t.rotation.z=a}
+ mesh(Cy(r*.3,r*.3,.26,12),M(0x1b2433),0,0,0,k).rotation.x=Math.PI/2;return k};
+const BLD={
+it(b){mesh(B(1.7,2.3,1.2),M(0x2b2f4a),0,1.15,0,b);
+ for(let i=0;i<5;i++){mesh(B(1.35,.16,.05),glow(0x9a8fff,.8),0,.4+i*.42,.62,b);mesh(B(.09,.09,.05),glow(0x6bff9a,1),.58,.4+i*.42,.65,b)}
+ mesh(Cy(.08,.12,.4,8),M(0x888a99),0,2.5,0,b);const m=mesh(B(1.6,.95,.1),glow(0x4a3fd0,.9),0,3,0,b);
+ return t=>{m.material.emissiveIntensity=.7+.3*Math.sin(t*3)}},
+em(b){mesh(Cy(.1,.38,3.5,6),M(0xe8e8ee),0,1.75,0,b);[1,2,2.8].forEach((y,i)=>mesh(B(1.5-i*.4,.07,.07),M(0xe0735a),0,y,0,b));
+ mesh(Sp(.17),glow(0xff4a3a,1),0,3.6,0,b);
+ const rs=[0,1,2].map(()=>{const r=mesh(new THREE.TorusGeometry(1,.035,6,40),glow(0xe0735a,.8),0,3.6,0,b);r.material.transparent=true;r.rotation.x=Math.PI/2;return r});
+ return t=>rs.forEach((r,i)=>{const p=(t*.5+i/3)%1;r.scale.setScalar(.3+p*1.8);r.material.opacity=1-p})},
+ss(b){mesh(B(2.3,.35,2.3),M(0x25272e),0,.18,0,b);mesh(B(1.3,.12,1.3),M(0xd9b65a,{metalness:.6,roughness:.3}),0,.43,0,b);
+ const die=mesh(B(.8,.18,.8),glow(0x3fd6c8,.9),0,.58,0,b);
+ for(let i=0;i<8;i++){const p=-.9+i*.257;[1.2,-1.2].forEach(q=>{mesh(B(.1,.1,.22),M(0xc8c8d0,{metalness:.7}),p,.12,q,b);mesh(B(.22,.1,.1),M(0xc8c8d0,{metalness:.7}),q,.12,p,b)})}
+ [[1,1],[-1,1],[1,-1],[-1,-1]].forEach(([x,z])=>mesh(Cy(.05,.05,1.6,8),glow(0x3fd6c8,.8),x,.9,z,b));
+ return t=>{die.position.y=.7+Math.sin(t*2)*.08}},
+pw(b){mesh(B(1.7,1.1,1.3),M(0x4a5568),-.4,.55,0,b);[-.8,-.4,0].forEach(x=>mesh(Cy(.17,.17,.8,10),M(0xf2a900),x,1.5,0,b));
+ [[.95,.25],[.95,-.25]].forEach(([x,z])=>mesh(Cy(.03,.09,2.8,6),M(0x7a8594),x,1.4,z,b));
+ [2.5,2.0].forEach(y=>mesh(B(.07,.07,1.3),M(0x7a8594),.95,y,0,b));
+ const sh=new THREE.Shape();[[.18,.55],[-.18,.05],[0,.05],[-.12,-.55],[.22,0],[.05,0]].forEach(([x,y],i)=>i?sh.lineTo(x,y):sh.moveTo(x,y));
+ const bolt=mesh(new THREE.ExtrudeGeometry(sh,{depth:.14,bevelEnabled:false}),glow(0xffd31f,1),-.4,3.2,-.07,b);
+ return t=>{bolt.position.y=3.2+Math.sin(t*2.2)*.12;bolt.rotation.y=t*1.2}},
+ct(b){mesh(B(2.2,.9,1.2),M(0x33506f),0,.45,0,b);[-.65,0,.65].forEach(x=>{const m=mesh(B(.55,.4,.05),glow(0x4a8fd9,.9),x,1.1,.1,b);m.rotation.x=-.3});
+ mesh(Cy(.06,.06,1.7,8),M(0x888a99),-.45,1.7,-.2,b);mesh(Cy(.05,.05,1.5,8),M(0x888a99),.8,1.6,-.2,b);
+ const g1=gear(.75,10,0x4a8fd9);g1.position.set(-.45,2.5,0);b.add(g1);const g2=gear(.45,7,0xf2a900);g2.position.set(.8,2.35,0);b.add(g2);
+ return t=>{g1.rotation.z=t*.6;g2.rotation.z=-t*.86}},
+cm(b){mesh(Cy(.13,.24,1.5,8),M(0xd0d4dc),0,.75,0,b);const sp=new THREE.Group();sp.position.y=1.8;b.add(sp);const tl=new THREE.Group();tl.rotation.x=.9;sp.add(tl);
+ mesh(new THREE.SphereGeometry(1.1,28,14,0,Math.PI*2,0,Math.PI*.36),M(0xf1f1f6,{side:THREE.DoubleSide,metalness:.3}),0,-.3,0,tl);
+ mesh(Cy(.025,.025,1,6),M(0x999),0,.25,0,tl);mesh(Sp(.1),glow(0xd4609b,1),0,.78,0,tl);
+ const rs=[0,1,2].map(()=>{const r=mesh(new THREE.TorusGeometry(1,.03,6,40),glow(0xd4609b,.8),0,.8,0,tl);r.material.transparent=true;r.rotation.x=Math.PI/2;return r});
+ return t=>{sp.rotation.y=Math.sin(t*.5)*.8;rs.forEach((r,i)=>{const p=(t*.6+i/3)%1;r.position.y=.8+p*1.6;r.scale.setScalar(.3+p*.9);r.material.opacity=1-p})}}};
+const ly={it:4.4,em:4.6,ss:2.7,pw:4.3,ct:4.1,cm:4.5};
+const picks=[plaza],ticks=[],blds={};
+const pl0=label("核心廣場",28);pl0.position.set(0,4.2,0);plaza.add(pl0);
+P.forEach(p=>{const g=new THREE.Group();g.userData.id=p.id;g.position.set(wx(p.x),GY,wz(p.y));S.add(g);
+ mesh(Cy(1.6,1.8,.25,32),M(new THREE.Color(p.c).lerp(new THREE.Color(0xffffff),.35)),0,.12,0,g);
+ const b=new THREE.Group();b.position.y=.25;g.add(b);ticks.push(BLD[p.id](b));
+ const l=label(p.icon+" "+p.name,26);l.position.set(0,ly[p.id]+.3,0);g.add(l);picks.push(g);blds[p.id]=g});
+// trees
+[[180,285],[725,285],[325,140],[575,140],[330,468],[575,468],[330,230],[570,380]].forEach(([x,y],i)=>{const t=new THREE.Group();t.position.set(wx(x),GY,wz(y));S.add(t);const s=.8+(i%3)*.15;t.scale.setScalar(s);
+ mesh(Cy(.1,.14,.7,6),M(0x7a5a3a),0,.35,0,t);[[.9,1.1,.9],[.7,1,1.6],[.5,.9,2.2]].forEach(([r,h,y],k)=>mesh(new THREE.ConeGeometry(r,h,7),M(k%2?0x3d9358:0x2f7a46),0,y,0,t))});
+// people
+function person(o){const g=new THREE.Group(),k=new THREE.Group();g.add(k);const sk=M(o.skin||0xf7d3b0);
+ const legs=[-.12,.12].map(x=>{const l=new THREE.Group();l.position.set(x,.5,0);mesh(Cy(.09,.08,.5,8),M(o.pants||0x35507a),0,-.25,0,l);mesh(B(.17,.09,.27),M(0x222a35),0,-.5,.05,l);k.add(l);return l});
+ mesh(Cy(.2,.26,.58,12),M(o.shirt),0,.8,0,k);
+ const arms=[-.31,.31].map(x=>{const a=new THREE.Group();a.position.set(x,1.02,0);mesh(Cy(.07,.065,.46,8),M(o.shirt),0,-.23,0,a);mesh(Sp(.07,8),sk,0,-.48,0,a);k.add(a);return a});
+ const h=new THREE.Group();h.position.y=1.3;k.add(h);mesh(Sp(.27,20),sk,0,0,0,h);
+ const hr=mesh(new THREE.SphereGeometry(.29,20,12,0,Math.PI*2,0,Math.PI*.55),M(o.hair||0x3a2a22),0,.02,-.03,h);hr.rotation.x=-.45;
+ [-.09,.09].forEach(x=>mesh(Sp(.035,8),M(0x222222),x,.02,.25,h));mesh(B(.08,.015,.02),M(0xb5645a),0,-.1,.26,h);
+ if(o.cap){mesh(Cy(.28,.3,.12,16),M(o.cap),0,.2,-.01,h);mesh(B(.32,.02,.22),M(o.cap),0,.15,.28,h)}
+ if(o.glasses)[-.1,.1].forEach(x=>mesh(new THREE.TorusGeometry(.065,.013,6,14),M(0x222222),x,.04,.265,h));
+ if(o.bag)mesh(B(.36,.42,.16),M(o.bag),0,.86,-.25,k);
+ if(o.tie)mesh(B(.07,.32,.02),M(0xc0392b),0,.88,.26,k);
+ g.scale.setScalar(o.s||.95);return{g,legs,arms,k}}
+function actor(o,x,y,spd,id){const a=person(o);a.x=x;a.y=y;a.tx=x;a.ty=y;a.spd=spd;a.h=GY;a.ph=Math.random()*6;a.w=0;S.add(a.g);if(id){a.g.userData.id=id;picks.push(a.g)}return a}
+const chair=actor({shirt:0x1c3f73,pants:0x1c3f73,hair:0xb9bcc2,glasses:1,tie:1,s:1.05},520,335,0,"intro");chair.g.rotation.y=-.5;
+const me=actor({shirt:0xff6b8b,pants:0x3a4a6b,hair:0x2a1f1a,cap:0xf2b400,bag:0x3a4a6b,s:1},400,375,120);
+const ml=label("我",24,"#ff6b8b","#fff");ml.position.set(0,2.3,0);me.g.add(ml);
+const hairs=[0x3a2a22,0x1d1d1d,0x6b3f26,0x2a2a35],pants=[0x35507a,0x4a4a55,0x3d5a4a,0x5a4a3a];
+const studs={};let talking=null;
+const rnd=()=>{for(let n=0;n<12;n++){const a=Math.random()*6.283,r=Math.sqrt(Math.random()),x=450+r*280*Math.cos(a),y=300+r*150*Math.sin(a);
+ if(P.every(p=>Math.hypot(p.x-x,p.y-y)>75)&&Math.hypot(x-450,y-300)>52)return[x,y]}return[450,380]};
+Object.keys(Y).forEach((k,i)=>{const[x,y]=rnd();const a=actor({shirt:Y[k].c,pants:pants[i],hair:hairs[i],bag:[0x2f4f7a,0x8a5a3a,0x4a4a55,0x7a3a3a][i],cap:i===0?0x2f4f7a:0,s:.95},x,y,60,k);
+ const l=label(Y[k].n,22,Y[k].c,"#fff");l.position.set(0,2.2,0);a.g.add(l);a.badge=l;studs[k]=a;
+ const roam=()=>{let w=900;if(!reduce&&talking!==k){const[nx,ny]=rnd();a.tx=nx;a.ty=ny;w=Math.hypot(nx-a.x,ny-a.y)/a.spd*1000+400+Math.random()*1500}setTimeout(roam,w)};setTimeout(roam,400+i*600)});
+const all=[chair,me,...Object.values(studs)];
+function upd(a,dt){const dx=a.tx-a.x,dy=a.ty-a.y,d=Math.hypot(dx,dy);let f=null;a.w=0;
+ if(d>1){const st=Math.min(d,a.spd*dt);a.x+=dx/d*st;a.y+=dy/d*st;a.w=1;f=Math.atan2(dx,dy)}else if(a.look)f=Math.atan2(a.look.x-a.x,a.look.y-a.y);
+ if(f!==null){let df=f-a.g.rotation.y;df=Math.atan2(Math.sin(df),Math.cos(df));a.g.rotation.y+=df*Math.min(1,dt*10)}
+ const th=Math.hypot(wx(a.x),wz(a.y))<3.3?.74:GY;a.h+=(th-a.h)*Math.min(1,dt*10);
+ if(a.w){a.ph+=dt*9;const s=Math.sin(a.ph);a.legs[0].rotation.x=s*.7;a.legs[1].rotation.x=-s*.7;a.arms[0].rotation.x=-s*.6;a.arms[1].rotation.x=s*.6;a.k.position.y=Math.abs(s)*.05}
+ else{[...a.legs,...a.arms].forEach(l=>l.rotation.x*=Math.max(0,1-dt*12));a.k.position.y*=.8}
+ a.g.position.set(wx(a.x),a.h,wz(a.y))}
+function bubble(k,txt){Object.values(studs).forEach(a=>{if(a.bub){a.g.remove(a.bub);a.bub.material.map.dispose();a.bub=null}if(a.badge)a.badge.visible=true});
+ if(!k)return;const a=studs[k],l=label(txt,22);l.position.set(0,2.75,0);a.g.add(l);a.bub=l;a.badge.visible=false}
+// interaction
+const ray=new THREE.Raycaster(),mv=new THREE.Vector2();let hov=null,down=null;
+function pick(e){const r=cv.getBoundingClientRect();mv.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(mv,C);
+ const h=ray.intersectObjects(picks,true);for(const x of h){let o=x.object;while(o&&!o.userData.id)o=o.parent;if(o)return o}return null}
+cv.addEventListener("pointerdown",e=>{down={x:e.clientX,y:e.clientY,az,pol,m:false};cv.setPointerCapture(e.pointerId)});
+cv.addEventListener("pointermove",e=>{if(down){const dx=e.clientX-down.x,dy=e.clientY-down.y;if(Math.hypot(dx,dy)>6)down.m=true;if(down.m){az=down.az-dx*.008;if(e.pointerType==="mouse")pol=Math.min(1.25,Math.max(.55,down.pol-dy*.005));cam()}}
+ else{const o=pick(e);hov=o;cv.classList.toggle("hot",!!o)}});
+cv.addEventListener("pointerup",e=>{if(down&&!down.m){const o=pick(e);if(o)show(o.userData.id)}down=null});
+cv.addEventListener("wheel",e=>{e.preventDefault();zoom=Math.min(1.5,Math.max(.6,zoom*(1+e.deltaY*.001)));cam()},{passive:false});
+S.traverse(o=>{if(o.isMesh&&o!==water){o.castShadow=true;o.receiveShadow=true}});
+// loop
+let last=performance.now();
+function loop(now){requestAnimationFrame(loop);const dt=Math.min(.05,(now-last)/1000),t=now/1000;last=now;
+ all.forEach(a=>upd(a,dt));ticks.forEach(f=>f(t));
+ if(!reduce)rings.forEach((r,i)=>{const p=(t*.22+i*.5)%1;r.scale.set(10.8*(1+p*.09),7.3*(1+p*.09),1);r.material.opacity=.6*(1-p)});
+ [...picks].forEach(g=>{if(g.userData.id==="intro"||studs[g.userData.id])return;const s=g.scale.x,ts=hov===g?1.07:1;g.scale.setScalar(s+(ts-s)*Math.min(1,dt*10))});
+ R.render(S,C)}
+requestAnimationFrame(loop);
+// dialog
+const out=$("#out");
+const setWho=(color,name)=>{const a=$("#av");a.textContent=color?"🧑‍🎓":"🧑‍🏫";a.style.background=color||"#1c3f73";$("#whoName").textContent=name};
+const walk=(a,x,y)=>{a.tx=Math.min(750,Math.max(150,x));a.ty=Math.min(480,Math.max(100,y))};
+const go=id=>document.querySelectorAll(".nav button[data-go]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.go===id));
+function release(){talking=null;bubble(null);all.forEach(a=>a.look=null)}
+window.talk=function(k,sem){const y=Y[k],a=studs[k];sem=sem||1;
+ if(talking!==k){release();talking=k;a.tx=a.x;a.ty=a.y;a.look=me;me.look=a;walk(me,a.x<450?a.x+46:a.x-46,a.y+16)}
+ go(k);setWho(y.c,y.n+"同學");const list=sem===1?y.s1:y.s2;bubble(k,"我在修"+list[0]+"…");
+ out.innerHTML=`<h2>${y.n}同學</h2><p>「嗨!我是${y.n}的學生。${sem===1?"這學期(上學期)我正在修這些課:":"下學期我會修這些課:"}」</p>${chips(list,"must")}<p>「${Q[k]}」</p><p>${y.t}</p><div class="nav"><button onclick="talk('${k}',${sem===1?2:1})">${sem===1?"下學期會修什麼?":"回到上學期"}</button></div>`};
+const talk=window.talk;
+function show(id){
+ if(Y[id])return talk(id);
+ release();go(id);
+ if(id==="core"){walk(me,450,365);setWho(null,"系主任");
+  const G=[["數理基礎",["微積分","線性代數","工程數學","複變函數","機率學","普通物理","普通物理實驗","近代物理"],"所有工程學習的語言,大一大二最集中。"],["程式與數位",["計算機概論","程式語言","計算機實習","資料結構","交換電路與邏輯設計"],"從寫程式到理解數位電路。"],["電機核心",["電路學","電子學","電磁學","電磁波","訊號與系統","電工實驗"],"電機系的骨幹,電路學、電子學要依序修習。"],["共同課程",["國文","外文","博雅","歷史","憲政","體育","勞動服務"],"全校通識與基本素養。"]];
+  out.innerHTML=`<h2>🏛️ 核心廣場</h2><p>系主任:「這裡是所有人的起點。先在廣場把核心課程學好,再往外選擇專業領域。」</p>${G.map(g=>`<div class="sem"><b>${g[0]}</b> <span style="font-size:13px;color:var(--muted)">${g[2]}</span>${chips(g[1],g[0]==="電機核心"?"must":"")}</div>`).join("")}<p>核心課程之後,還要從六個領域中選修:關聯圖有「六選三」與「六選四」兩種版本,請依入學年度確認。</p>`;return}
+
+ const p=P.find(x=>x.id===id);
+ if(p){walk(me,p.x,p.y+80);setWho(null,"系主任");
+  out.innerHTML=`<h2>${p.icon} ${p.name}</h2><p>系主任:「${p.t}」</p><b>關鍵必修</b>${chips(p.must,"must")}<div class="sem"><b>相關基礎課</b>${chips(p.more)}</div><p>想了解更多,可以再逛逛其他地點,或點一位同學,我會走過去跟他聊聊。</p>`;return}
+
+ setWho(null,"系主任");walk(me,450,365);
+ if(id==="minor"){
+  out.innerHTML=`<h2>輔系修讀</h2><p>系主任:「電機系輔系至少修 25 學分,以下皆為必修:」</p>${chips(["程式設計 3","電磁波 3","電磁學 3","電路學 3(一下、二上)","電子學 3(二上、二下、三上)"],"must")}<p>非工學士學生須加修工程數學 (I)(II) 共 6 學分。電路學與電子學要依序修習。</p>`;return}
+
+ out.innerHTML=`<h2>歡迎來到電機島</h2><p>系主任:「我是系主任。這座島上有六個專業領域,同學們正在島上四處走動。點一位同學,你的角色會走過去和他聊他正在修的課;點建築,我來介紹領域。拖曳畫面可以轉動島嶼。」</p>`}
+document.querySelectorAll(".nav button[data-go]").forEach(b=>b.onclick=()=>show(b.dataset.go));
+show("intro");
+}
+
+</script>
+</body>
+</html>
